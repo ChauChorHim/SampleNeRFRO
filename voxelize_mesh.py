@@ -62,7 +62,7 @@ def main(unused_argv):
       np.ndarray, [B, 1]
     """
     inside = intersector.contains(x)[..., None]
-    return np.where(inside > 0.5, 1.33, 1.0)
+    return np.where(inside > 0.5, 1.5, 1.0)
     # return np.where(inside > 0.5, 1., 0.0)
 
   # -----------------------------------------------------------------------------
@@ -72,8 +72,8 @@ def main(unused_argv):
   Y, X, Z = np.meshgrid(np.linspace(-1, 1, FLAGS.num_samples),
                         np.linspace(-1, 1, FLAGS.num_samples),
                         np.linspace(-1, 1, FLAGS.num_samples))
-  noise_scale = 2 / (FLAGS.num_samples - 1) * 0.5
-  noise = (np.random.rand(FLAGS.num_samples, FLAGS.num_samples, FLAGS.num_samples, 3) * 2 - 1) * noise_scale
+  # noise_scale = 2 / (FLAGS.num_samples - 1) * 0.5
+  # noise = (np.random.rand(FLAGS.num_samples, FLAGS.num_samples, FLAGS.num_samples, 3) * 2 - 1) * noise_scale
   # offset = (np.stack([X, Y, Z], axis=-1) + noise).reshape(-1, 3)
   offset = np.stack([X, Y, Z], axis=-1).reshape(-1, 3)
 
@@ -96,15 +96,13 @@ def main(unused_argv):
   Z = Z * (z_max - z_min) + z_min
   grid = np.stack([X, Y, Z], axis=-1).reshape(-1, 3)
 
-  out = np.zeros((grid.shape[0], 1))
-  # TODO: parallel for-loop
-  for i in tqdm(range(grid.shape[0])):
-    noise = (np.random.rand(FLAGS.num_samples, FLAGS.num_samples, FLAGS.num_samples, 3) * 2 - 1) * noise_scale
-    # sample = grid[i:(i + 1)] + (offset + noise.reshape(-1, 3)) * offset_scale
-    sample = grid[i:(i + 1)] + offset * offset_scale
-    ior = contain(sample)
-    out[i] = np.mean(ior)
-    # out[i] = 1.33 if np.mean(ior) > 0.5 else 1
+  import scipy
+  grid_ior = contain(grid).reshape(FLAGS.num_voxels, FLAGS.num_voxels, FLAGS.num_voxels)
+  out = grid_ior.copy()
+  k_s = np.ones(FLAGS.num_samples) / FLAGS.num_samples
+  for i, k in enumerate((k_s, k_s, k_s)):
+    out = scipy.ndimage.convolve1d(out, k, axis=i)
+
 
   with open(os.path.join(out_dir, "mesh.pkl"), "wb") as f:
     pickle.dump({
